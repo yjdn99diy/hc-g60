@@ -1,5 +1,51 @@
 KERNEL_LOADADDR := 0x48080000
 
+define Build/mt798x-gpt
+  cp $@ $@.tmp 2>/dev/null || true
+  ptgen -g -o $@.tmp -a 1 -l 1024 \
+    -H \
+    -t 0x83 -N bl2        -r -p 4079k@17k \
+    -t 0x83 -N u-boot-env -r -p 512k@4M \
+    -t 0x83 -N factory    -r -p 2M@4608k \
+    -t 0xef -N fip        -r -p 2M@6656k \
+            -N kernel     -r -p 32M@8704K \
+    -t 0x2e -N rootfs        -p $(CONFIG_TARGET_ROOTFS_PARTSIZE)M@41472K 
+  cat $@.tmp >> $@.gpt
+  rm $@.tmp
+endef
+
+define Build/gen_mt7986_bpir3_nand
+  ./gen_mt7986_bpir3_nand.sh $@ \
+    ./mt7986_bpir3-uboot/bl2_nand.img \
+    ./mt7986_bpir3-uboot/fip_nand.bin \
+    $(KDIR)/tmp/immortalwrt-mediatek-mt7986-BPI-R3-NAND-squashfs-factory.bin
+endef
+
+define Build/gen_mt7986_bpir3_nand114
+  ./gen_mt7986_bpir3_nand.sh $@ \
+    ./mt7986_bpir3-uboot/bl2_nand.img \
+    ./mt7986_bpir3-uboot/fip_nand114.bin \
+    $(KDIR)/tmp/immortalwrt-mediatek-mt7986-BPI-R3-NAND-114M-squashfs-factory.bin
+endef
+
+define Build/gen_mt7986_bpir3_emmc
+  ./gen_mt7986_bpir3_mmc.sh $@ \
+    $@.gpt \
+    ./mt7986_bpir3-uboot/bl2_emmc.img \
+    ./mt7986_bpir3-uboot/fip_emmc.bin \
+    $(IMAGE_KERNEL)  \
+    $(IMAGE_ROOTFS)
+endef
+
+define Build/gen_mt7986_bpir3_sdmmc
+  ./gen_mt7986_bpir3_mmc.sh $@ \
+    $@.gpt \
+    ./mt7986_bpir3-uboot/bl2_sd.img \
+    ./mt7986_bpir3-uboot/fip_sd.bin \
+    $(IMAGE_KERNEL) \
+    $(IMAGE_ROOTFS)
+endef
+
 MT7986_USB_PKGS := automount blkid blockdev fdisk \
     kmod-nls-cp437 kmod-nls-iso8859-1 kmod-usb2 kmod-usb3 \
     luci-app-usb-printer luci-i18n-usb-printer-zh-cn \
@@ -449,6 +495,92 @@ define Device/BPI-R3MINI-EMMC
   IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
 endef
 TARGET_DEVICES += BPI-R3MINI-EMMC
+
+define Device/BPI-R3-NAND
+  DEVICE_VENDOR := Banana Pi
+  DEVICE_MODEL := Banana Pi R3
+  DEVICE_TITLE := Banana Pi R3 NAND
+  DEVICE_DTS := mt7986a-bananapi-bpi-r3-nand
+  DEVICE_DTS_DIR := $(DTS_DIR)/mediatek
+  DEVICE_PACKAGES := $(MT7986_USB_PKGS) $(MT7986_WWAN_PKGS) \
+        kmod-nvme kmod-sfp kmod-scsi-generic kmod-ata-ahci mmc-utils
+  SUPPORTED_DEVICES := bananapi,bpi-r3
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGE_SIZE := 65536k
+  KERNEL_IN_UBI := 1
+  IMAGES += factory.bin single.img.gz
+  IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE) 
+  IMAGE/single.img.gz :=  $$(IMAGE/factory.bin) | gen_mt7986_bpir3_nand | gzip | append-metadata
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += BPI-R3-NAND
+
+define Device/BPI-R3-NAND-114M
+  DEVICE_VENDOR := Banana Pi
+  DEVICE_MODEL := Banana Pi R3
+  DEVICE_TITLE := Banana Pi R3 NAND 114M Layout
+  DEVICE_DTS := mt7986a-bananapi-bpi-r3-nand-114m
+  DEVICE_DTS_DIR := $(DTS_DIR)/mediatek
+  DEVICE_PACKAGES := $(MT7986_USB_PKGS) $(MT7986_WWAN_PKGS) \
+        kmod-nvme kmod-sfp kmod-scsi-generic kmod-ata-ahci mmc-utils
+  SUPPORTED_DEVICES := bananapi,bpi-r3
+  UBINIZE_OPTS := -E 5
+  BLOCKSIZE := 128k
+  PAGESIZE := 2048
+  IMAGE_SIZE := 117248k
+  KERNEL_IN_UBI := 1
+  IMAGES += factory.bin single.img.gz
+  IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
+  IMAGE/single.img.gz :=  $$(IMAGE/factory.bin) | gen_mt7986_bpir3_nand114 | gzip | append-metadata
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += BPI-R3-NAND-114M
+
+define Device/BPI-R3-EMMC
+  DEVICE_VENDOR := Banana Pi
+  DEVICE_MODEL := Banana Pi R3
+  DEVICE_TITLE := Banana Pi R3 EMMC 
+  DEVICE_DTS := mt7986a-bananapi-bpi-r3-emmc
+  DEVICE_DTS_DIR := $(DTS_DIR)/mediatek
+  SUPPORTED_DEVICES := bananapi,bpi-r3-emmc
+  DEVICE_PACKAGES := $(MT7986_USB_PKGS) $(MT7986_WWAN_PKGS) \
+        kmod-nvme kmod-sfp kmod-scsi-generic kmod-ata-ahci \
+        f2fsck losetup mkf2fs f2fs-tools kmod-fs-f2fs kmod-mmc automount mmc-utils
+  IMAGES += single.img.gz 
+  IMAGE/single.img.gz := mt798x-gpt | gen_mt7986_bpir3_emmc | gzip | append-metadata
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += BPI-R3-EMMC
+
+define Device/BPI-R3-SD
+  DEVICE_VENDOR := Banana Pi
+  DEVICE_MODEL := Banana Pi R3
+  DEVICE_TITLE := Banana Pi R3 SDMMC 
+  DEVICE_DTS := mt7986a-bananapi-bpi-r3-sdmmc
+  DEVICE_DTS_DIR := $(DTS_DIR)/mediatek
+  SUPPORTED_DEVICES := bananapi,bpi-r3-sdmmc
+  DEVICE_PACKAGES := $(MT7986_USB_PKGS) $(MT7986_WWAN_PKGS) \
+        kmod-nvme kmod-sfp kmod-scsi-generic kmod-ata-ahci \
+        f2fsck losetup mkf2fs f2fs-tools kmod-fs-f2fs kmod-mmc automount mmc-utils
+  IMAGES += single.img.gz 
+  IMAGE/single.img.gz := mt798x-gpt | gen_mt7986_bpir3_sdmmc | gzip | append-metadata
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+endef
+TARGET_DEVICES += BPI-R3-SD
+
+define Device/BPI-R3-NOR
+  DEVICE_VENDOR := Banana Pi
+  DEVICE_MODEL := Banana Pi R3
+  DEVICE_TITLE := Banana Pi R3 NOR
+  DEVICE_DTS := mt7986a-bananapi-bpi-r3-nor
+  DEVICE_DTS_DIR := $(DTS_DIR)/mediatek
+  DEVICE_PACKAGES := $(MT7986_USB_PKGS) $(MT7986_WWAN_PKGS) \
+        kmod-nvme kmod-sfp kmod-scsi-generic kmod-ata-ahci mmc-utils
+  SUPPORTED_DEVICES := bananapi,bpi-r3
+endef
+TARGET_DEVICES += BPI-R3-NOR
 
 define Device/jdcloud_re-cp-03
   DEVICE_VENDOR := JDCloud

@@ -1,0 +1,32 @@
+--- a/arch/arm64/boot/dts/mediatek/mt7986a.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7986a.dtsi
+@@ -320,25 +320,25 @@
+ 			thermal-sensors = <&thermal 0>;
+ 			trips {
+ 				cpu_trip_crit: crit {
+-					temperature = <125000>;
++					temperature = <70000>;
+ 					hysteresis = <2000>;
+ 					type = "critical";
+ 				};
+ 
+ 				cpu_trip_hot: hot {
+-					temperature = <120000>;
++					temperature = <60000>;
+ 					hysteresis = <2000>;
+ 					type = "hot";
+ 				};
+ 
+ 				cpu_trip_active_high: active-high {
+-					temperature = <115000>;
++					temperature = <50000>;
+ 					hysteresis = <2000>;
+ 					type = "active";
+ 				};
+ 
+ 				cpu_trip_active_low: active-low {
+-					temperature = <85000>;
++					temperature = <45000>;
+ 					hysteresis = <2000>;
+ 					type = "active";
+ 				};
